@@ -37,9 +37,9 @@ function Header() {
                         <h1
                             style={{ fontFamily: "sans-serif" }}
                             className='text-base text-[#a937e2] font-black md:text-2xl'>DIVAN DIONE</h1>
-                        <h2
+                        {/* <h2
                             style={{ fontFamily: "sans-serif" }}
-                            className='text-xs font-medium md:text-sm'>SMOKE WITH ATTITUDE</h2>
+                            className='text-xs font-medium md:text-sm'>SMOKE WITH ATTITUDE</h2> */}
                     </div>
                 </div>
                 <nav className="flex items-center gap-6">
