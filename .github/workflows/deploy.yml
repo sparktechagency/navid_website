@@ -3,10 +3,10 @@ name: Deploy Node.js with TypeScript on EC2
 on:
   push:
     branches:
-      - 'main'
+      - "main"
   pull_request:
     branches:
-      - 'main'
+      - "main"
 
 jobs:
   build:
@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.15'
+          node-version: "20.15"
       - name: Install Dependencies
         run: npm install --frozen-lockfile
       - name: Install TypeScript Compiler
@@ -34,7 +34,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.15'
+          node-version: "20.15"
       - name: Install Dependencies
         run: npm install --frozen-lockfile
       - name: Build Project
