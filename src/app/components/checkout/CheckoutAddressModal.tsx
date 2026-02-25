@@ -1,28 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useCreateShippingAddressMutation,
+  useGetAllPickupAddressQuery,
+  useGetAllShippingAddressQuery,
+} from "@/app/redux/services/addressApis";
+import { useCreateOrderMutation } from "@/app/redux/services/orderApis";
+import { useCreatePaymentMutation } from "@/app/redux/services/paymentApis";
+import { useProfileQuery } from "@/app/redux/services/profileApis";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ConfigProvider, Spin } from "antd";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "antd";
-import {
-  useGetAllShippingAddressQuery,
-  useCreateShippingAddressMutation,
-  useGetAllPickupAddressQuery,
-} from "@/app/redux/services/addressApis";
-import { useCreateOrderMutation } from "@/app/redux/services/orderApis";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
+import { ConfigProvider, Select, Spin } from "antd";
 import { Loader2 } from "lucide-react";
-import { useProfileQuery } from "@/app/redux/services/profileApis";
-import Cookies from "js-cookie";
-import { useCreatePaymentMutation } from "@/app/redux/services/paymentApis";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import toast from "react-hot-toast";
 interface CheckoutAddressModalProps {
   open: boolean;
   onClose: () => void;
@@ -128,12 +126,7 @@ export function CheckoutAddressModal({ open, onClose, cartItems, totalAmount }: 
       if (isPaymentCreating) {
         setSuccsessModal(true)
       }
-      if (window !== undefined) {
-        window.location.href = payment?.url
-      } else {
-        router.push(payment?.url)
-      }
-
+      window.open(payment?.url, '_blank')
       onClose();
     } catch (error: any) {
       if (error?.status === 403) {
