@@ -1,83 +1,4 @@
-# name: Deploy Node.js with TypeScript on EC2
-
-# on:
-#   push:
-#     branches:
-#       - "main"
-#   pull_request:
-#     branches:
-#       - "main"
-
-# jobs:
-#   build:
-#     runs-on: ubuntu-latest
-
-#     steps:
-#       - uses: actions/checkout@v3
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v3
-#         with:
-#           node-version: "20.15"
-#       - name: Install Dependencies
-#         run: npm install --frozen-lockfile
-#       - name: Install TypeScript Compiler
-#         run: npm install -g typescript
-#       - name: Build Project
-#         run: npm run build
-
-#   deploy:
-#     runs-on: ubuntu-latest
-#     needs: build
-
-#     steps:
-#       - uses: actions/checkout@v3
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v3
-#         with:
-#           node-version: "20.15"
-#       - name: Install Dependencies
-#         run: npm install --frozen-lockfile
-#       - name: Build Project
-#         run: npm run build
-#       - name: Configure SSH
-#         env:
-#           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
-#         run: |
-#           mkdir -p ~/.ssh
-#           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-#           chmod 600 ~/.ssh/id_rsa
-#           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-
-#       - name: Deploy Server
-#         env:
-#           SERVER_HOST: ${{ secrets.SERVER_HOST }}
-#           SERVER_USER: ${{ secrets.SERVER_USER }}
-#           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
-#         run: |
-#           # Create application directories on EC2 if they don't exist
-#           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
-
-#           # Copy the website project to EC2 using `rsync`
-#           rsync -avz \
-#             --exclude='.git' \
-#              --exclude='.next' \
-#             --exclude='node_modules' \
-#             --exclude='.github' \
-#             . $SERVER_USER@$SERVER_HOST:~/applications/website/  # Deploy only the backend files
-
-#           # Install production dependencies on EC2 for the backend
-#           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm install --frozen-lockfile --production"
-
-#           # Set the environment variables (using the ENV_VARS_JSON secret)
-#           ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' > ~/applications/website/.env"
-
-#           # Stop the existing PM2 process if it exists
-#           ssh $SERVER_USER@$SERVER_HOST "pm2 delete website || true"  # Ensures no errors if the process doesn't exist
-
-#           # Start the backend application with PM2
-#           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && pm2 start npm --name website -- run start"
-
-name: Deploy Next.js Website to EC2
+name: Deploy Node.js with TypeScript on EC2
 
 on:
   push:
@@ -88,24 +9,36 @@ on:
       - 'main'
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
       - uses: actions/checkout@v3
-
-      # 2. Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.17'
-
-      # 3. Install dependencies locally (optional)
+          node-version: '20.15'
       - name: Install Dependencies
         run: npm install --frozen-lockfile
+      - name: Install TypeScript Compiler
+        run: npm install -g typescript
+      - name: Build Project
+        run: npm run build
 
-      # 4. Configure SSH
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.15'
+      - name: Install Dependencies
+        run: npm install --frozen-lockfile
+      - name: Build Project
+        run: npm run build
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
@@ -115,47 +48,114 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 5. Install PM2 on EC2
-      - name: Install PM2 on EC2
-        run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "sudo npm install -g pm2"
-
-      # 6. Deploy project files to EC2
-      - name: Deploy Website to EC2
+      - name: Deploy Server
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
         run: |
-          # Create directory on EC2
+          # Create application directories on EC2 if they don't exist
           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
 
-          # Sync project files
+          # Copy the website project to EC2 using `rsync`
           rsync -avz \
             --exclude='.git' \
+             --exclude='.next' \
             --exclude='node_modules' \
             --exclude='.github' \
-            . $SERVER_USER@$SERVER_HOST:~/applications/website/
+            . $SERVER_USER@$SERVER_HOST:~/applications/website/  # Deploy only the backend files
 
-          # Set environment variables from JSON secret BEFORE build
-          ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
+          # Install production dependencies on EC2 for the backend
+          ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm install --frozen-lockfile --production"
 
-          # Install dependencies and build on EC2
-          ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm install --frozen-lockfile && npm run build"
+          # Set the environment variables (using the ENV_VARS_JSON secret)
+          ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' > ~/applications/website/.env"
 
-          # Stop existing PM2 process if exists
-          ssh $SERVER_USER@$SERVER_HOST "pm2 delete website || true"
+          # Stop the existing PM2 process if it exists
+          ssh $SERVER_USER@$SERVER_HOST "pm2 delete website || true"  # Ensures no errors if the process doesn't exist
 
-          # Start Next.js project with PM2
-          ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && pm2 start npm --name website -- start"
+          # Start the backend application with PM2
+          ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && pm2 start npm --name website -- run start"
 
-      # 7. Setup PM2 to auto-start on reboot
-      - name: Setup PM2 Startup on EC2
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-        run: |
-          ssh $SERVER_USER@$SERVER_HOST "
-            sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u $SERVER_USER --hp /home/$SERVER_USER &&
-            pm2 save
-          "
+# name: Deploy Next.js Website to EC2
+
+# on:
+#   push:
+#     branches:
+#       - 'main'
+#   pull_request:
+#     branches:
+#       - 'main'
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       # 1. Checkout repo
+#       - uses: actions/checkout@v3
+
+#       # 2. Set up Node.js
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: '20.17'
+
+#       # 3. Install dependencies locally (optional)
+#       - name: Install Dependencies
+#         run: npm install --frozen-lockfile
+
+#       # 4. Configure SSH
+#       - name: Configure SSH
+#         env:
+#           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+#           chmod 600 ~/.ssh/id_rsa
+#           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+#       # 5. Install PM2 on EC2
+#       - name: Install PM2 on EC2
+#         run: |
+#           ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "sudo npm install -g pm2"
+
+#       # 6. Deploy project files to EC2
+#       - name: Deploy Website to EC2
+#         env:
+#           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+#           SERVER_USER: ${{ secrets.SERVER_USER }}
+#           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
+#         run: |
+#           # Create directory on EC2
+#           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
+
+#           # Sync project files
+#           rsync -avz \
+#             --exclude='.git' \
+#             --exclude='node_modules' \
+#             --exclude='.github' \
+#             . $SERVER_USER@$SERVER_HOST:~/applications/website/
+
+#           # Set environment variables from JSON secret BEFORE build
+#           ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
+
+#           # Install dependencies and build on EC2
+#           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm install --frozen-lockfile && npm run build"
+
+#           # Stop existing PM2 process if exists
+#           ssh $SERVER_USER@$SERVER_HOST "pm2 delete website || true"
+
+#           # Start Next.js project with PM2
+#           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && pm2 start npm --name website -- start"
+
+#       # 7. Setup PM2 to auto-start on reboot
+#       - name: Setup PM2 Startup on EC2
+#         env:
+#           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+#           SERVER_USER: ${{ secrets.SERVER_USER }}
+#         run: |
+#           ssh $SERVER_USER@$SERVER_HOST "
+#             sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u $SERVER_USER --hp /home/$SERVER_USER &&
+#             pm2 save
+#           "
