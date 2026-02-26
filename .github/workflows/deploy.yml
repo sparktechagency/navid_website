@@ -29,54 +29,54 @@ jobs:
       # 4. Configure SSH
       - name: Configure SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       # 5. Install PM2 on EC2
       - name: Install PM2 on EC2
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "sudo npm install -g pm2"
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "sudo npm install -g pm2"
 
       # 6. Deploy project files to EC2
       - name: Deploy Website to EC2
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
         run: |
           # Create directory on EC2
-          ssh $EC2_USER@$EC2_HOST "mkdir -p ~/applications/website"
+          ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
 
           # Sync project files
           rsync -avz \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='.github' \
-            . $EC2_USER@$EC2_HOST:~/applications/website/
+            . $SERVER_USER@$SERVER_HOST:~/applications/website/
 
           # Set environment variables from JSON secret BEFORE build
-          ssh $EC2_USER@$EC2_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
+          ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
 
           # Install dependencies and build on EC2
-          ssh $EC2_USER@$EC2_HOST "cd ~/applications/website && npm install --frozen-lockfile && npm run build"
+          ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm install --frozen-lockfile && npm run build"
 
           # Stop existing PM2 process if exists
-          ssh $EC2_USER@$EC2_HOST "pm2 delete website || true"
+          ssh $SERVER_USER@$SERVER_HOST "pm2 delete website || true"
 
           # Start Next.js project with PM2
-          ssh $EC2_USER@$EC2_HOST "cd ~/applications/website && pm2 start npm --name website -- start"
+          ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && pm2 start npm --name website -- start"
 
       # 7. Setup PM2 to auto-start on reboot
       - name: Setup PM2 Startup on EC2
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
-          ssh $EC2_USER@$EC2_HOST "
-            sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u $EC2_USER --hp /home/$EC2_USER &&
+          ssh $SERVER_USER@$SERVER_HOST "
+            sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u $SERVER_USER --hp /home/$SERVER_USER &&
             pm2 save
           "
