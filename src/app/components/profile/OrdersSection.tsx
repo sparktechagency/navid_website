@@ -1,23 +1,19 @@
 "use client";
 
-import { memo, useCallback, useEffect, useState } from "react";
-import { Spin, Empty, Pagination, Radio } from "antd";
-import { useGetAllOrdersQuery } from "@/app/redux/services/orderApis";
-import { useCreatePaymentMutation } from "@/app/redux/services/paymentApis";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
-import { driver } from "driver.js";
-import "driver.js/dist/driver.css";
 import { optionForFilter } from "@/app/constants/constData";
+import { useOrderHandlers } from "@/app/hook/useOrderHandlers";
+// import { usePaymentGuide } from "@/app/hook/usePaymentGuide";
+import { useGetAllOrdersQuery } from "@/app/redux/services/orderApis";
 import { Order } from "@/app/types/order";
-import SwitchSection from "./order-components/SwitchSection";
-import ItemDetailSection from "./order-components/ItemDetailSection";
+import { Empty, Pagination, Radio, Spin } from "antd";
+import "driver.js/dist/driver.css";
+import { memo } from "react";
 import DeliveryInformation from "./order-components/DeliveryInformation";
 import DottedLineSeparator from "./order-components/DottedLineSeparator";
-import StatusAndAmountSection from "./order-components/StatusAndAmountSection";
 import HeaderSectionWithGradient from "./order-components/HeaderSectionWithGradient";
-import { useOrderHandlers } from "@/app/hook/useOrderHandlers";
-import { usePaymentGuide } from "@/app/hook/usePaymentGuide";
+import ItemDetailSection from "./order-components/ItemDetailSection";
+import StatusAndAmountSection from "./order-components/StatusAndAmountSection";
+import SwitchSection from "./order-components/SwitchSection";
 
 
 function OrdersSection() {
@@ -40,7 +36,7 @@ function OrdersSection() {
   const orders: Order[] = orderResponse?.data || [];
   const pagination = orderResponse?.pagination;
 
-  usePaymentGuide(orders.length);
+  // usePaymentGuide(orders.length);
   if (isLoading) {
     return (
       <div className="flex justify-center items-center py-20">

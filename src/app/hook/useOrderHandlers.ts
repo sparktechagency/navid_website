@@ -1,21 +1,19 @@
-import { useState, useCallback } from "react";
-import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
 import { useCreatePaymentMutation } from "@/app/redux/services/paymentApis";
 import { Order } from "@/app/types/order";
+import React, { useCallback, useState } from "react";
+import toast from "react-hot-toast";
 
 interface UseOrderHandlersProps {
   orders: Order[];
 }
 
 export const useOrderHandlers = ({ orders }: UseOrderHandlersProps) => {
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = React.useState(1);
   const [status, setStatus] = useState<string | null>(null);
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
   const [toggleStates, setToggleStates] = useState<Record<string, boolean>>({});
-  
+
   const [createPayment, { isLoading: createPaymentLoading }] = useCreatePaymentMutation();
-  const router = useRouter();
 
   const handleToggleChange = useCallback((orderId: string, value: boolean) => {
     setToggleStates(prev => ({
@@ -50,16 +48,14 @@ export const useOrderHandlers = ({ orders }: UseOrderHandlersProps) => {
       }
       toast.success(res?.message || 'Your payment link has been created.');
       if (typeof window !== 'undefined') {
-        window.location.href = res?.url;
-      } else {
-        router.push(res?.url);
+        window.open(res?.url, '_blank');
       }
     } catch (error: any) {
       toast.error(error?.data?.message || error?.message || "Something went wrong while processing payment!");
     } finally {
       setProcessingOrderId(null);
     }
-  }, [createPayment, router]);
+  }, [createPayment]);
 
   const handleStatusChange = useCallback((value: string | null) => {
     setStatus(value);
@@ -76,25 +72,25 @@ export const useOrderHandlers = ({ orders }: UseOrderHandlersProps) => {
     status,
     processingOrderId,
     toggleStates,
-    
+
     // Actions
     setCurrentPage,
     setStatus,
     setProcessingOrderId,
-    
+
     // Handlers
     handleToggleChange,
     handlePayment,
     handleStatusChange,
     handlePageChange,
-    
+
     // Getters
     getToggleState,
     isPaymentEnabled,
-    
+
     // Derived states
     createPaymentLoading,
-    
+
     // Query params
     queryParams: {
       page: currentPage,
