@@ -58,12 +58,18 @@ jobs:
           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
 
           # Copy the website project to EC2 using `rsync`
+          # rsync -avz \
+          #   --exclude='.git' \
+          #    --exclude='.next' \
+          #   --exclude='node_modules' \
+          #   --exclude='.github' \
+          #   . $SERVER_USER@$SERVER_HOST:~/applications/website/  # Deploy only the backend files
+          # Copy the website project to EC2
           rsync -avz \
             --exclude='.git' \
-             --exclude='.next' \
             --exclude='node_modules' \
             --exclude='.github' \
-            . $SERVER_USER@$SERVER_HOST:~/applications/website/  # Deploy only the backend files
+            . $SERVER_USER@$SERVER_HOST:~/applications/website/
 
           # Install production dependencies on EC2 for the backend
           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm install --frozen-lockfile --production"
