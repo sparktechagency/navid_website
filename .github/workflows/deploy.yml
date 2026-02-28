@@ -1,3 +1,70 @@
+# name: Deploy Next.js Website to EC2
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Repo
+#         uses: actions/checkout@v3
+
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: '20.17'
+
+#       # Build locally on GitHub Actions
+#       - name: Install Dependencies & Build
+#         run: |
+#           npm install --frozen-lockfile
+#           npm run build
+
+#       # Setup SSH
+#       - name: Configure SSH
+#         env:
+#           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+#           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+#           chmod 600 ~/.ssh/id_rsa
+#           ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
+
+#       # Deploy files to EC2
+#       - name: Deploy to EC2
+#         env:
+#           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+#           SERVER_USER: ${{ secrets.SERVER_USER }}
+#           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
+#         run: |
+#           set -e
+
+#           # Ensure PM2 is installed
+#           ssh $SERVER_USER@$SERVER_HOST "command -v pm2 || sudo npm install -g pm2"
+
+#           # Create project directory
+#           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
+
+#           # Sync built files
+#           rsync -avz --delete --compress-level=9 \
+#             .next package.json public $SERVER_USER@$SERVER_HOST:~/applications/website/
+
+#           # Write environment variables
+#           ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
+
+#           # Install production dependencies
+#           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && npm ci --omit=dev"
+
+#           # Start or reload PM2
+#           ssh $SERVER_USER@$SERVER_HOST "cd ~/applications/website && \
+#             pm2 describe website > /dev/null 2>&1 && pm2 reload website || pm2 start npm --name website -- start"
+
+
 name: Deploy Next.js Website to EC2
 
 on:
@@ -10,21 +77,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout repository
       - name: Checkout Repo
         uses: actions/checkout@v3
 
+      # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20.17'
 
-      # Build locally on GitHub Actions
+      # 3️⃣ Install dependencies & build
       - name: Install Dependencies & Build
         run: |
-          npm install --frozen-lockfile
+          npm ci
           npm run build
 
-      # Setup SSH
+      # 4️⃣ Setup SSH
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
@@ -35,7 +104,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
 
-      # Deploy files to EC2
+      # 5️⃣ Deploy files to EC2
       - name: Deploy to EC2
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -50,9 +119,9 @@ jobs:
           # Create project directory
           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
 
-          # Sync built files
+          # Sync built files, package.json & package-lock.json
           rsync -avz --delete --compress-level=9 \
-            .next package.json public $SERVER_USER@$SERVER_HOST:~/applications/website/
+            .next package.json package-lock.json public $SERVER_USER@$SERVER_HOST:~/applications/website/
 
           # Write environment variables
           ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
