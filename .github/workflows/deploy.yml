@@ -139,6 +139,73 @@
 #                     pm2 describe website > /dev/null 2>&1 && pm2 reload website || pm2 start npm --name website -- start
 #                   "
 
+# name: Deploy Next.js Website to EC2
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       # 1. Checkout repo
+#       - name: Checkout Repo
+#         uses: actions/checkout@v3
+
+#       # 2. Setup Node.js
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: '20.17'
+
+#       # 3. Install dependencies and build locally (on GitHub runner)
+#       - name: Install Dependencies & Build
+#         run: |
+#           npm install --frozen-lockfile
+#           npm run build
+
+#       # 4. Configure SSH
+#       - name: Configure SSH
+#         env:
+#           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+#         run: |
+#           mkdir -p ~/.ssh
+#           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+#           chmod 600 ~/.ssh/id_rsa
+#           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+#       # 5. Deploy built files to EC2
+#       - name: Deploy to EC2
+#         env:
+#           SERVER_HOST: ${{ secrets.SERVER_HOST }}
+#           SERVER_USER: ${{ secrets.SERVER_USER }}
+#           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
+#         run: |
+#           set -e
+
+#           # Ensure PM2 is installed
+#           ssh $SERVER_USER@$SERVER_HOST "command -v pm2 || sudo npm install -g pm2"
+
+#           # Create project directory
+#           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
+
+#           # Sync built files only
+#           rsync -avz --delete \
+#             .next package.json package-lock.json public $SERVER_USER@$SERVER_HOST:~/applications/website/
+
+#           # Write environment variables
+#           ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
+
+#           # Install all dependencies (including devDependencies) and start app
+#           ssh $SERVER_USER@$SERVER_HOST "
+#             cd ~/applications/website &&
+#             npm ci &&
+#             pm2 describe website > /dev/null 2>&1 && pm2 reload website || pm2 start npm --name website -- start
+#           "
+
 name: Deploy Next.js Website to EC2
 
 on:
@@ -151,23 +218,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+      # 1️⃣ Checkout repo
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # 2. Setup Node.js
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20.17'
-
-      # 3. Install dependencies and build locally (on GitHub runner)
-      - name: Install Dependencies & Build
-        run: |
-          npm install --frozen-lockfile
-          npm run build
-
-      # 4. Configure SSH
+      # 2️⃣ Configure SSH
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
@@ -177,8 +232,8 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 5. Deploy built files to EC2
-      - name: Deploy to EC2
+      # 3️⃣ Deploy to EC2
+      - name: Deploy Application
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -186,21 +241,25 @@ jobs:
         run: |
           set -e
 
-          # Ensure PM2 is installed
-          ssh $SERVER_USER@$SERVER_HOST "command -v pm2 || sudo npm install -g pm2"
-
-          # Create project directory
+          # Create project directory if not exists
           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
 
-          # Sync built files only
+          # Sync full project (exclude unnecessary files)
           rsync -avz --delete \
-            .next package.json public $SERVER_USER@$SERVER_HOST:~/applications/website/
+            --exclude node_modules \
+            --exclude .git \
+            --exclude .github \
+            ./ $SERVER_USER@$SERVER_HOST:~/applications/website/
 
           # Write environment variables
           ssh $SERVER_USER@$SERVER_HOST "echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > ~/applications/website/.env"
 
-          # Install only production dependencies and start app
+          # Install dependencies, build, and restart app
           ssh $SERVER_USER@$SERVER_HOST "
             cd ~/applications/website &&
-            npm ci --omit=dev &&
-            pm2 describe website > /dev/null 2>&1 && pm2 reload website || pm2 start npm --name website -- start
+            npm ci &&
+            npm run build &&
+            pm2 describe website > /dev/null 2>&1 && \
+            pm2 reload website || \
+            pm2 start npm --name website -- start
+          "
