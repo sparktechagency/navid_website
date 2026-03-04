@@ -244,14 +244,16 @@ jobs:
 
           echo "🚀 Connecting to server..."
 
-          # Ensure Node 24 and PM2 are installed on EC2
+          # Ensure Node 24 and PM2 are installed globally
           ssh $SERVER_USER@$SERVER_HOST "
-            if ! command -v node >/dev/null 2>&1; then
+            # Install Node 24 if not exists
+            if ! command -v node >/dev/null 2>&1 || [ \$(node -v | cut -d 'v' -f2 | cut -d '.' -f1) -lt 24 ]; then
               echo '📦 Installing Node 24...'
               curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
               sudo apt install -y nodejs
             fi
 
+            # Install PM2 if not exists
             if ! command -v pm2 >/dev/null 2>&1; then
               echo '📦 Installing PM2 globally...'
               sudo npm install -g pm2
@@ -265,7 +267,7 @@ jobs:
           # Create app directory if not exists
           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
 
-          # Sync project files (excluding node_modules & .next)
+          # Sync project files (exclude node_modules & .next)
           rsync -avz --delete \
             --exclude node_modules \
             --exclude .next \
@@ -273,10 +275,9 @@ jobs:
 
           echo "📦 Files synced successfully"
 
-          # Run setup + build + restart on server
+          # Setup, build, and restart
           ssh $SERVER_USER@$SERVER_HOST "
             set -e
-
             cd ~/applications/website
 
             echo '📁 Writing environment variables'
