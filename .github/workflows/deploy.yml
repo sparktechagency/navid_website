@@ -222,11 +222,11 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
-      # 2️⃣ Setup Node (only needed for optional checks)
+      # 2️⃣ Optional Node setup on runner
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 22
+          node-version: 22 # only for local checks; server build will use Node 24
 
       # 3️⃣ Configure SSH
       - name: Configure SSH
@@ -264,13 +264,19 @@ jobs:
           # Run setup + build + restart on server
           ssh $SERVER_USER@$SERVER_HOST "
             set -e
+
+            # ✅ Load NVM and use Node 24
+            export NVM_DIR=\"$HOME/.nvm\"
+            [ -s \"$NVM_DIR/nvm.sh\" ] && \. \"$NVM_DIR/nvm.sh\"
+            nvm use 24
+
             cd ~/applications/website
 
             echo '📁 Writing environment variables'
             echo '$ENV_VARS_JSON' | jq -r 'to_entries | .[] | \"\(.key)=\(.value)\"' > .env
 
             echo '📦 Installing dependencies'
-            npm install
+            npm install --no-audit --prefer-offline
 
             echo '🏗 Building Next.js app'
             npm run build
