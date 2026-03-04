@@ -164,7 +164,7 @@ jobs:
       # 3. Install dependencies and build locally (on GitHub runner)
       - name: Install Dependencies & Build
         run: |
-          npm ci
+          npm install
           npm run build
 
       # 4. Configure SSH
