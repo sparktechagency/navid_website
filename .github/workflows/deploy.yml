@@ -153,18 +153,18 @@ jobs:
     steps:
       # 1. Checkout repo
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/setup-node@v4
 
       # 2. Setup Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20.17'
+          node-version: '20'
 
       # 3. Install dependencies and build locally (on GitHub runner)
       - name: Install Dependencies & Build
         run: |
-          npm install --frozen-lockfile
+          npm ci
           npm run build
 
       # 4. Configure SSH
