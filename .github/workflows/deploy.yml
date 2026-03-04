@@ -222,13 +222,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
 
-      # 2️⃣ Optional Node setup on runner
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 22 # only for local checks; server build will use Node 24
-
-      # 3️⃣ Configure SSH
+      # 2️⃣ Configure SSH
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
@@ -239,7 +233,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
 
-      # 4️⃣ Deploy to EC2
+      # 3️⃣ Deploy to EC2
       - name: Deploy to EC2
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -249,6 +243,24 @@ jobs:
           set -e
 
           echo "🚀 Connecting to server..."
+
+          # Ensure Node 24 and PM2 are installed on EC2
+          ssh $SERVER_USER@$SERVER_HOST "
+            if ! command -v node >/dev/null 2>&1; then
+              echo '📦 Installing Node 24...'
+              curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+              sudo apt install -y nodejs
+            fi
+
+            if ! command -v pm2 >/dev/null 2>&1; then
+              echo '📦 Installing PM2 globally...'
+              sudo npm install -g pm2
+            fi
+
+            node -v
+            npm -v
+            pm2 -v
+          "
 
           # Create app directory if not exists
           ssh $SERVER_USER@$SERVER_HOST "mkdir -p ~/applications/website"
@@ -264,11 +276,6 @@ jobs:
           # Run setup + build + restart on server
           ssh $SERVER_USER@$SERVER_HOST "
             set -e
-
-            # ✅ Load NVM and use Node 24
-            export NVM_DIR=\"$HOME/.nvm\"
-            [ -s \"$NVM_DIR/nvm.sh\" ] && \. \"$NVM_DIR/nvm.sh\"
-            nvm use 24
 
             cd ~/applications/website
 
