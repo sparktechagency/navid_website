@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20.17'
+          node-version: '22.13.0'
 
       # 3️⃣ Install dependencies & build on GitHub runner
       - name: Install Dependencies & Build
@@ -29,34 +29,34 @@ jobs:
       # 4️⃣ Configure SSH
       - name: Configure SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
       # 5️⃣ Sync files to EC2
       - name: Sync Files to EC2
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
           set -e
 
-          ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST \
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "mkdir -p ~/applications/website"
 
           rsync -avz --delete --compress-level=9 \
             -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa" \
             .next package.json package-lock.json public \
-            $EC2_USER@$EC2_HOST:~/applications/website/
+            $SERVER_USER@$SERVER_HOST:~/applications/website/
 
-      # 6️⃣ Write .env file — built locally then scp'd, zero quoting issues
+      # 6️⃣ Write .env file
       - name: Write Environment Variables
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
         run: |
           set -e
@@ -64,33 +64,33 @@ jobs:
           echo "$ENV_VARS_JSON" | jq -r 'to_entries | .[] | "\(.key)=\(.value)"' > /tmp/.env
 
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
-            /tmp/.env $EC2_USER@$EC2_HOST:~/applications/website/.env
+            /tmp/.env $SERVER_USER@$SERVER_HOST:~/applications/website/.env
 
       # 7️⃣ Install deps & restart app
       - name: Install & Restart App
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
           set -e
 
           NVM_LOAD='export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
 
           # Ensure PM2 is installed
-          ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST \
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && (command -v pm2 > /dev/null 2>&1 || npm install -g pm2)'"
 
           # Clear npm cache to free memory
-          ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST \
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && npm cache clean --force'"
 
           # Install production dependencies
-          ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST \
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && cd ~/applications/website && \
               NODE_OPTIONS=--max-old-space-size=512 npm install --omit=dev --prefer-offline'"
 
-          # ✅ Fix: delete then start fresh — avoids reload/start race condition
-          ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST \
+          # Delete & restart PM2 cleanly
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && cd ~/applications/website && \
               pm2 delete website 2>/dev/null || true && \
               pm2 start npm --name website -- start && \
