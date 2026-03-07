@@ -114,8 +114,7 @@ jobs:
         run: |
           set -e
 
-          # nvm loader — sources nvm on the remote non-interactive shell
-          NVM_LOAD='export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'
+          NVM_LOAD='export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'
 
           # Ensure PM2 is installed
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
@@ -125,15 +124,15 @@ jobs:
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "mkdir -p ~/applications/website"
 
-          # Sync built files, package.json & package-lock.json to EC2
+          # Sync built files to EC2
           rsync -avz --delete --compress-level=9 \
             -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa" \
             .next package.json package-lock.json public \
             $SERVER_USER@$SERVER_HOST:~/applications/website/
 
-          # Write environment variables from secret JSON
-          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
-            "bash -c '$NVM_LOAD && echo '"'"'$ENV_VARS_JSON'"'"' | jq -r '"'"'to_entries | .[] | \"\(.key)=\(.value)\"'"'"' > ~/applications/website/.env'"
+          # Write .env file by piping JSON via stdin — avoids all quoting issues
+          echo "$ENV_VARS_JSON" | ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
+            "bash -c '$NVM_LOAD && jq -r '"'"'to_entries | .[] | \"\(.key)=\(.value)\"'"'"' > ~/applications/website/.env'"
 
           # Install production dependencies only
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
