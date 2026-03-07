@@ -36,7 +36,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 5️⃣ Sync files to EC2
+      # 5️⃣ Sync files + node_modules to EC2 (no npm install on server at all)
       - name: Sync Files to EC2
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -47,9 +47,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "mkdir -p ~/applications/website"
 
+          # Sync everything including node_modules — npm install never runs on server
           rsync -avz --delete --compress-level=9 \
             -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa" \
-            .next package.json package-lock.json public \
+            .next node_modules package.json package-lock.json public \
             $SERVER_USER@$SERVER_HOST:~/applications/website/
 
       # 6️⃣ Write .env file
@@ -66,8 +67,8 @@ jobs:
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             /tmp/.env $SERVER_USER@$SERVER_HOST:~/applications/website/.env
 
-      # 7️⃣ Install deps & restart app
-      - name: Install & Restart App
+      # 7️⃣ Restart app only — no npm install on server
+      - name: Restart App
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
@@ -80,16 +81,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && (command -v pm2 > /dev/null 2>&1 || npm install -g pm2)'"
 
-          # Clear npm cache to free memory
-          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
-            "bash -c '$NVM_LOAD && npm cache clean --force'"
-
-          # Install production dependencies
-          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
-            "bash -c '$NVM_LOAD && cd ~/applications/website && \
-              NODE_OPTIONS=--max-old-space-size=512 npm install --omit=dev --prefer-offline'"
-
-          # Delete & restart PM2 cleanly
+          # Delete & restart PM2 cleanly — no npm install, just restart
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && cd ~/applications/website && \
               pm2 delete website 2>/dev/null || true && \
