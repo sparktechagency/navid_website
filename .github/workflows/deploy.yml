@@ -105,12 +105,45 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H $SERVER_HOST >> ~/.ssh/known_hosts
 
-      # 5️⃣ Deploy files to EC2
-      - name: Deploy to EC2
+      # 5️⃣ Sync files to EC2
+      - name: Sync Files to EC2
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          set -e
+
+          # Create project directory
+          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
+            "mkdir -p ~/applications/website"
+
+          # Sync built files
+          rsync -avz --delete --compress-level=9 \
+            -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa" \
+            .next package.json package-lock.json public \
+            $SERVER_USER@$SERVER_HOST:~/applications/website/
+
+      # 6️⃣ Write .env — completely isolated step, no quoting conflict
+      - name: Write Environment Variables
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           ENV_VARS_JSON: ${{ secrets.ENV_VARS_JSON }}
+        run: |
+          set -e
+
+          # Convert JSON to .env format locally first
+          echo "$ENV_VARS_JSON" | jq -r 'to_entries | .[] | "\(.key)=\(.value)"' > /tmp/.env
+
+          # Copy the .env file directly to server — zero quoting issues
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
+            /tmp/.env $SERVER_USER@$SERVER_HOST:~/applications/website/.env
+
+      # 7️⃣ Install dependencies & start app
+      - name: Install & Restart App
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
         run: |
           set -e
 
@@ -120,25 +153,11 @@ jobs:
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && (command -v pm2 > /dev/null 2>&1 || npm install -g pm2)'"
 
-          # Create project directory if not exists
-          ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
-            "mkdir -p ~/applications/website"
-
-          # Sync built files to EC2
-          rsync -avz --delete --compress-level=9 \
-            -e "ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa" \
-            .next package.json package-lock.json public \
-            $SERVER_USER@$SERVER_HOST:~/applications/website/
-
-          # Write .env file by piping JSON via stdin — avoids all quoting issues
-          echo "$ENV_VARS_JSON" | ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
-            "bash -c '$NVM_LOAD && jq -r '"'"'to_entries | .[] | \"\(.key)=\(.value)\"'"'"' > ~/applications/website/.env'"
-
-          # Install production dependencies only
+          # Install production dependencies
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && cd ~/applications/website && npm ci --omit=dev'"
 
-          # Reload PM2 if already running, otherwise start fresh
+          # Reload or start PM2
           ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST \
             "bash -c '$NVM_LOAD && cd ~/applications/website && \
               (pm2 describe website > /dev/null 2>&1 \
